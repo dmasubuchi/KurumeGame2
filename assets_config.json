@@ -2,7 +2,7 @@
     // assets_config.json
     // 画像を使うかどうか、タイルサイズ、画像ファイルパスの一覧をまとめた設定ファイルです。
     
-    "useAssets": true,      // true: 画像アセットを使う, false: すべてテキスト(ASCII)描画にフォールバック
+    "useAssets": false,      // true: 画像アセットを使う, false: すべてテキスト(ASCII)描画にフォールバック
     "tileSize": 64,         // 1タイルのピクセルサイズ。ゲーム内の壁・床・キャラクタ等の表示サイズに影響。
     
     "images": {
