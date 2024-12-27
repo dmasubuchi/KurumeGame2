@@ -1,0 +1,50 @@
+/* ページ全体のリセットやフォント等 */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: sans-serif;
+  background: #f0f0f0;
+}
+
+/* コンテナを左右に分割する */
+#container {
+  display: flex;
+  height: 100vh; /* 全画面表示などに応じて調整 */
+}
+
+/* 左側: メニューやレベル選択 */
+#menu-section {
+  width: 280px;       /* 固定幅 */
+  background-color: #eee;
+  padding: 20px;
+  box-sizing: border-box;
+  border-right: 2px solid #999;
+}
+
+#menu-section h2 {
+  margin-top: 0;
+}
+
+/* ボタン類 */
+.buttons {
+  margin: 20px 0;
+}
+.buttons button {
+  margin-right: 8px;
+  padding: 8px 16px;
+}
+
+/* 右側: ゲームプレイ領域 */
+#game-section {
+  flex: 1; /* 残りの領域を使う */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #fff;
+  overflow: hidden;
+}
+
+#game-canvas {
+  border: 2px solid #333;
+  background-color: #fafafa;
+}

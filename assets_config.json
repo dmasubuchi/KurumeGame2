@@ -1,0 +1,19 @@
+{
+    // assets_config.json
+    // 画像を使うかどうか、タイルサイズ、画像ファイルパスの一覧をまとめた設定ファイルです。
+    
+    "useAssets": true,      // true: 画像アセットを使う, false: すべてテキスト(ASCII)描画にフォールバック
+    "tileSize": 64,         // 1タイルのピクセルサイズ。ゲーム内の壁・床・キャラクタ等の表示サイズに影響。
+    
+    "images": {
+      "wall":  "assets/wall.png",   // 壁のタイル画像
+      "floor": "assets/floor.png",  // 床のタイル画像
+      "start": "assets/start.png",  // スタート地点のタイル画像
+      "goal":  "assets/goal.png",   // ゴール地点のタイル画像
+      "player":"assets/player.png", // プレイヤーのキャラクター画像
+      "trap":  "assets/trap.png",   // トラップ画像 (Tなど)
+      "enemy": "assets/enemy.png",  // 敵キャラクター画像 (Eなど)
+      "weapon":"assets/weapon.png"  // 武器アイテム画像 (!など)
+    }
+  }
+  

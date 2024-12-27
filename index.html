@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>Maze Challenge (Single-page Layout)</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>　
+  <div id="container"> 
+    <!-- 左側: メニューやレベル選択 1-->
+    <div id="menu-section">
+      <h2>Map Selection</h2>
+      <label for="level-select">レベルを選んでください:</label>
+      <select id="level-select">
+        <option value="1">Level 1</option>
+        <option value="2">Level 2</option>
+        <option value="3">Level 3</option>
+        <option value="4">Level 4</option>
+        <option value="5">Level 5</option>
+        <option value="6">Level 6</option>
+        <option value="7">Level 7</option>
+        <option value="8">Level 8</option>
+        <option value="9">Level 9</option>
+        <option value="10">Level 10</option>
+      </select>
+
+      <div class="buttons">
+        <button id="start-btn">ゲーム開始</button>
+        <button id="end-btn">ゲーム終了</button>
+      </div>
+
+      <p id="timer">
+        Time Left: <span id="time-value">30</span> s
+      </p>
+    </div>
+
+    <!-- 右側: ゲームプレイ領域 -->
+    <div id="game-section">
+      <canvas id="game-canvas" width="640" height="512"></canvas>
+    </div>
+  </div>
+
+  <!-- スクリプト読み込み -->
+  <script src="script.js"></script>
+</body>
+</html>
