@@ -1,16 +1,18 @@
 /******************************************************
  * script.js
  * 
- *  - 「Debug 1」は #debug-messages に蓄積
- *  - 「Debug 2」は #debug2-frameinfo に最新フレームのみ上書き表示
- *  - Canvasサイズをマップに合わせる (単純案)
- *  - 敵"E"が動き、衝突でGame Over
+ * 【ポイント】
+ *   1) フレーム単位の処理が行われるたびに、コンソールにもフレーム番号やステップを出力 (console.log)
+ *   2) Debug 2: 画面右側の #debug2-frameinfo に最新フレームのステップ情報を上書き表示
+ *   3) Debug 1: 画面右側の #debug-messages に履歴ログを蓄積
+ *   4) Canvasサイズをマップ幅×tileSizeで合わせる (単純案)
+ *   5) 敵"E"がゆっくり動き、当たればGameOver
  ******************************************************/
 
 /*********************************************************
  * 0) デバッグログ関連
  *********************************************************/
-// Debug 1: 蓄積
+// Debug 1 (蓄積ログ)
 function logDebug(tag, message) {
   const debugPanel = document.getElementById("debug-messages");
   if (!debugPanel) return;
@@ -18,15 +20,17 @@ function logDebug(tag, message) {
   const now = new Date().toLocaleTimeString();
   const line = document.createElement("div");
   line.textContent = `[${now}] [${tag}] ${message}`;
+
   debugPanel.appendChild(line);
   debugPanel.scrollTop = debugPanel.scrollHeight;
 }
 
-// Debug 2: 最新フレーム
+// Debug 2 (最新フレーム情報)
 function updateFrameInfo(frameNumber, steps) {
   const debug2 = document.getElementById("debug2-frameinfo");
   if (!debug2) return;
 
+  // フレームごとのステップをまとめて１つの文字列に
   let content = `Frame #${frameNumber}\n`;
   for (let step of steps) {
     content += " - " + step + "\n";
@@ -57,14 +61,17 @@ let imageCache    = {};
 let playerX       = 0;
 let playerY       = 0;
 let tileSize      = 64;
+
+// 敵関連
 let enemies       = [];
-let frameCount    = 0;
+let frameCount    = 0;  // 毎フレームインクリメント
 
 /*********************************************************
  * 2) ページ読み込み時
  *********************************************************/
 window.addEventListener("load", () => {
   logDebug("INFO","Page loaded, start initialization");
+
   loadConfig()
     .then(() => loadAllMaps())
     .then(() => preloadImages())
@@ -79,7 +86,7 @@ window.addEventListener("load", () => {
 });
 
 /*********************************************************
- * 3) assets_config.json 読み込み
+ * 3) assets_config.json を読み込む
  *********************************************************/
 function loadConfig() {
   logDebug("EVENT","Loading assets_config.json...");
@@ -100,7 +107,7 @@ function loadConfig() {
 }
 
 /*********************************************************
- * 4) MapLevel.json 読み込み
+ * 4) MapLevel.json を読み込む
  *********************************************************/
 function loadAllMaps() {
   logDebug("EVENT","Loading MapLevel.json...");
@@ -199,7 +206,7 @@ function startGame(level) {
   }
 
   currentMapData = mapData;
-  // Canvasをマップに合わせる (単純案)
+  // Canvasをマップサイズに合わせる (単純案)
   canvas.width  = currentMapData.width  * tileSize;
   canvas.height = currentMapData.height * tileSize;
   logDebug("INFO", `Canvas resized to ${canvas.width} x ${canvas.height}`);
@@ -207,19 +214,21 @@ function startGame(level) {
   initGameState();
   initTimer();
   isGamePlaying = true;
-
+  
   logDebug("INFO","Game started with level=" + level);
-  frameCount = 0; 
+
+  frameCount = 0; // フレームカウンタリセット
   gameLoop();
 }
 
 /*********************************************************
- * 8) ゲーム状態初期化
+ * 8) ゲーム状態の初期化
  *********************************************************/
 function initGameState() {
   timeRemaining = timeLimit;
   timeValue.textContent = timeRemaining.toString();
-  enemies = [];
+
+  enemies = []; // 敵をリセット
 
   const tiles = currentMapData.tiles;
   for (let row = 0; row < currentMapData.height; row++) {
@@ -266,21 +275,26 @@ function gameLoop() {
   if (!isGamePlaying) return;
 
   frameCount++;
+  // 毎フレームのステップを配列に記録
   let steps = [];
 
-  steps.push("Enemies updating...");
+  steps.push("Updating enemies");
   updateEnemies();
 
-  steps.push("Drawing scene...");
+  steps.push("Drawing scene");
   drawGame();
   drawEnemies();
 
-  steps.push("Collision checking...");
+  steps.push("Collision check");
   checkCollisionWithEnemies();
 
-  // Debug 2: 最新フレームのステップを表示
+  // Debug 2 用: フレーム内容を表示
   updateFrameInfo(frameCount, steps);
 
+  // ★ コンソールにも出力
+  console.log(`[FRAME] #${frameCount}`, steps);
+
+  // 次フレーム
   requestAnimationFrame(gameLoop);
 }
 
@@ -291,6 +305,8 @@ function updateEnemies() {
   for (let enemy of enemies) {
     enemy.x += enemy.speedX;
     enemy.y += enemy.speedY;
+
+    // 左右端で反転
     if (enemy.x < 1 || enemy.x > currentMapData.width - 2) {
       enemy.speedX *= -1;
     }
@@ -302,15 +318,15 @@ function updateEnemies() {
  *********************************************************/
 function drawEnemies() {
   for (let enemy of enemies) {
-    const px = enemy.x * tileSize;
-    const py = enemy.y * tileSize;
+    let px = enemy.x * tileSize;
+    let py = enemy.y * tileSize;
     ctx.fillStyle = enemy.color;
     ctx.fillRect(px, py, tileSize, tileSize);
   }
 }
 
 /*********************************************************
- * 13) 衝突判定 (プレイヤー - 敵)
+ * 13) 衝突判定(敵)
  *********************************************************/
 function checkCollisionWithEnemies() {
   for (let enemy of enemies) {
@@ -324,7 +340,7 @@ function checkCollisionWithEnemies() {
 }
 
 /*********************************************************
- * 14) 画面描画 (タイル + プレイヤー)
+ * 14) 画面描画(タイル + プレイヤー)
  *********************************************************/
 function drawGame() {
   if (!currentMapData) return;
@@ -382,6 +398,7 @@ function drawPlayer() {
   } else {
     ctx.fillStyle = "blue";
     ctx.fillRect(px, py, tileSize, tileSize);
+
     ctx.fillStyle = "white";
     ctx.font = "20px monospace";
     ctx.fillText("P", px + tileSize / 4, py + tileSize / 1.5);
