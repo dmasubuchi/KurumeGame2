@@ -1,13 +1,15 @@
 /******************************************************
  * script.js
  * 
- *  - MapLevel.json から全レベルのマップデータを読み込み
- *  - assets_config.json (同フォルダ) で画像アセットを設定
- *  - index.html (左:メニュー, 中:Canvas, 右:Debug Log) で表示
+ *  - MapLevel.json (同ディレクトリ) から
+ *    全レベルのマップデータを読み込み、ゲームをプレイ
+ *  - assets_config.json (同フォルダ) で画像アセット設定
+ *  - index.html でレイアウト(左：メニュー、中央：Canvas、右：デバッグログ)
  * 
- *  - 今回の改善点:
- *    1) logDebug(tag, message) 関数を作り、画面の右側にログを表示
- *    2) コンソール出力(console.log)のかわりに logDebug("EVENT","...") 等で区分け
+ *  - 今回の要点:
+ *    A) 単純案: Canvasのサイズをマップに合わせて自動設定
+ *       → 大きなマップはブラウザ側でスクロールされる
+ *    B) 敵" E "がゆっくり動き、衝突するとゲームオーバー
  ******************************************************/
 
 /*********************************************************
@@ -15,19 +17,18 @@
  *********************************************************/
 function logDebug(tag, message) {
   const debugPanel = document.getElementById("debug-messages");
-  if (!debugPanel) return;  // 念のため
+  if (!debugPanel) return;
 
-  // 時刻＋タグ＋メッセージを1行にまとめる
   const now = new Date().toLocaleTimeString();
   const line = document.createElement("div");
   line.textContent = `[${now}] [${tag}] ${message}`;
 
   debugPanel.appendChild(line);
-  debugPanel.scrollTop = debugPanel.scrollHeight; // 自動的に下へスクロール
+  debugPanel.scrollTop = debugPanel.scrollHeight;
 }
 
 /*********************************************************
- * グローバル変数やHTML要素の取得
+ * 1) HTML要素やグローバル変数
  *********************************************************/
 const levelSelect     = document.getElementById("level-select");
 const startButton     = document.getElementById("start-btn");
@@ -36,7 +37,7 @@ const timeValue       = document.getElementById("time-value");
 const canvas          = document.getElementById("game-canvas");
 const ctx             = canvas.getContext("2d");
 
-let timeLimit         = 30; // 30秒固定
+let timeLimit         = 30; 
 let timeRemaining     = timeLimit;
 let timerInterval     = null;
 
@@ -50,11 +51,11 @@ let playerX           = 0;
 let playerY           = 0;
 let tileSize          = 64;       
 
-// 敵関連
-let enemies = []; // { x, y, speedX, speedY, color }
+// 敵管理
+let enemies = []; 
 
 /*********************************************************
- * ページ読み込み時
+ * 2) ページ読み込み時
  *********************************************************/
 window.addEventListener("load", () => {
   logDebug("INFO","Page loaded, start initialization");
@@ -63,14 +64,16 @@ window.addEventListener("load", () => {
     .then(() => preloadImages())
     .then(() => initMenu())
     .catch(err => {
-      logDebug("ERROR", "Initialization error: " + err.message);
-      document.getElementById("map-status").textContent
-        = "Failed to load JSON: " + err.message;
+      logDebug("ERROR","Initialization error: " + err.message);
+      const statusEl = document.getElementById("map-status");
+      if (statusEl) {
+        statusEl.textContent = "Failed to load JSON: " + err.message;
+      }
     });
 });
 
 /*********************************************************
- * 1) assets_config.json を読み込む
+ * 3) assets_config.json を読み込む
  *********************************************************/
 function loadConfig() {
   logDebug("EVENT","Loading assets_config.json...");
@@ -91,7 +94,7 @@ function loadConfig() {
 }
 
 /*********************************************************
- * 2) MapLevel.json を読み込む
+ * 4) MapLevel.json を読み込む
  *********************************************************/
 function loadAllMaps() {
   logDebug("EVENT","Loading MapLevel.json...");
@@ -108,12 +111,15 @@ function loadAllMaps() {
         throw new Error("MapLevel.json: 'levels' is not an array");
       }
       logDebug("OUTPUT","allLevels loaded successfully!");
-      document.getElementById("map-status").textContent = "Map loaded successfully!";
+      const statusEl = document.getElementById("map-status");
+      if (statusEl) {
+        statusEl.textContent = "Map loaded successfully!";
+      }
     });
 }
 
 /*********************************************************
- * 3) 画像アセットのプリロード
+ * 5) 画像アセットのプリロード
  *********************************************************/
 function preloadImages() {
   if (!config || !config.useAssets) {
@@ -147,7 +153,7 @@ function preloadImages() {
 }
 
 /*********************************************************
- * 4) メニュー初期化
+ * 6) メニュー初期化
  *********************************************************/
 function initMenu() {
   logDebug("EVENT","initMenu called");
@@ -171,7 +177,7 @@ function initMenu() {
 }
 
 /*********************************************************
- * 5) ゲーム開始
+ * 7) ゲーム開始
  *********************************************************/
 function startGame(level) {
   logDebug("EVENT",`startGame(level=${level})`);
@@ -187,6 +193,13 @@ function startGame(level) {
   }
 
   currentMapData = mapData;
+
+  // ★ 単純案: Canvasサイズをマップに合わせる
+  // 幅 * tileSize, 高さ * tileSize
+  canvas.width  = currentMapData.width  * tileSize;
+  canvas.height = currentMapData.height * tileSize;
+  logDebug("INFO", `Canvas resized to ${canvas.width} x ${canvas.height}`);
+
   initGameState();
   initTimer();
   isGamePlaying = true;
@@ -196,13 +209,13 @@ function startGame(level) {
 }
 
 /*********************************************************
- * 6) ゲーム状態の初期化
+ * 8) ゲーム状態の初期化 (プレイヤー位置 / 敵初期化)
  *********************************************************/
 function initGameState() {
   timeRemaining = timeLimit;
   timeValue.textContent = timeRemaining.toString();
 
-  enemies = [];  // 敵リストを初期化
+  enemies = [];  
 
   const tiles = currentMapData.tiles;
   for (let row = 0; row < currentMapData.height; row++) {
@@ -227,7 +240,7 @@ function initGameState() {
 }
 
 /*********************************************************
- * 7) タイマー開始
+ * 9) タイマー開始
  *********************************************************/
 function initTimer() {
   clearInterval(timerInterval);
@@ -243,7 +256,7 @@ function initTimer() {
 }
 
 /*********************************************************
- * 8) メインループ
+ * 10) メインループ
  *********************************************************/
 function gameLoop() {
   if (!isGamePlaying) return;
@@ -257,14 +270,14 @@ function gameLoop() {
 }
 
 /*********************************************************
- * 9) 敵を更新
+ * 11) 敵を更新 (速度で移動, 端で反転)
  *********************************************************/
 function updateEnemies() {
   for (let enemy of enemies) {
     enemy.x += enemy.speedX;
     enemy.y += enemy.speedY;
 
-    // 簡易的にマップ左右端で反転
+    // 簡易的に左右端で反転
     if (enemy.x < 1 || enemy.x > currentMapData.width - 2) {
       enemy.speedX *= -1;
     }
@@ -272,7 +285,7 @@ function updateEnemies() {
 }
 
 /*********************************************************
- * 10) 敵を描画
+ * 12) 敵を描画 (四角形)
  *********************************************************/
 function drawEnemies() {
   for (let enemy of enemies) {
@@ -285,11 +298,11 @@ function drawEnemies() {
 }
 
 /*********************************************************
- * 11) 敵との当たり判定
+ * 13) 敵との当たり判定
  *********************************************************/
 function checkCollisionWithEnemies() {
   for (let enemy of enemies) {
-    // 敵は小数座標, プレイヤーは整数
+    // 敵は小数, プレイヤーは整数
     let ex = Math.floor(enemy.x + 0.5);
     let ey = Math.floor(enemy.y + 0.5);
 
@@ -301,7 +314,7 @@ function checkCollisionWithEnemies() {
 }
 
 /*********************************************************
- * 12) 画面描画 (タイル + プレイヤー)
+ * 14) 画面描画 (タイル + プレイヤー)
  *********************************************************/
 function drawGame() {
   if (!currentMapData) return;
@@ -311,7 +324,8 @@ function drawGame() {
   const tiles = currentMapData.tiles;
   for (let row = 0; row < currentMapData.height; row++) {
     for (let col = 0; col < currentMapData.width; col++) {
-      drawTile(tiles[row][col], col, row);
+      const ch = tiles[row][col];
+      drawTile(ch, col, row);
     }
   }
 
@@ -319,7 +333,7 @@ function drawGame() {
 }
 
 /*********************************************************
- * 13) タイル描画 (画像 or テキスト)
+ * 15) タイル描画 (画像 or テキスト)
  *********************************************************/
 function drawTile(ch, col, row) {
   if (config && config.useAssets) {
@@ -347,7 +361,7 @@ function drawTile(ch, col, row) {
 }
 
 /*********************************************************
- * 14) プレイヤー描画
+ * 16) プレイヤー描画
  *********************************************************/
 function drawPlayer() {
   if (!currentMapData) return;
@@ -367,12 +381,12 @@ function drawPlayer() {
 }
 
 /*********************************************************
- * 15) キーボード操作 (上下左右移動)
+ * 17) キーボード操作 (上下左右移動)
  *********************************************************/
 document.addEventListener("keydown", (e) => {
   if (!isGamePlaying) return;
 
-  logDebug("INPUT", "KeyDown: " + e.key);
+  logDebug("INPUT","KeyDown: " + e.key);
 
   let newX = playerX;
   let newY = playerY;
@@ -394,7 +408,6 @@ document.addEventListener("keydown", (e) => {
   playerY = newY;
   logDebug("INFO", `Player moved to (${playerX},${playerY})`);
 
-  // ゴール判定
   const ch = currentMapData.tiles[newY][newX];
   if (ch === 'G') {
     levelClear();
@@ -402,7 +415,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 /*********************************************************
- * 16) 移動可能か判定
+ * 18) 移動可能か判定
  *********************************************************/
 function canMoveTo(x, y) {
   if (!currentMapData) return false;
@@ -417,7 +430,7 @@ function canMoveTo(x, y) {
 }
 
 /*********************************************************
- * 17) ゲームクリア
+ * 19) ゲームクリア
  *********************************************************/
 function levelClear() {
   logDebug("OUTPUT","Level Clear!");
@@ -426,7 +439,7 @@ function levelClear() {
 }
 
 /*********************************************************
- * 18) ゲームオーバー
+ * 20) ゲームオーバー
  *********************************************************/
 function gameOver(message) {
   logDebug("OUTPUT","GameOver: " + message);
@@ -435,7 +448,7 @@ function gameOver(message) {
 }
 
 /*********************************************************
- * 19) ゲーム終了
+ * 21) ゲーム終了
  *********************************************************/
 function endGame() {
   isGamePlaying = false;
