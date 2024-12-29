@@ -1,19 +1,17 @@
 /******************************************************
  * script.js
  * 
- *  - MapLevel.json & assets_config.json 読み込み
- *  - Canvasサイズをマップに合わせる(単純案)
- *  - 敵" E "が動く + 接触でGameOver
- *  - デバッグログ:
- *      Debug 1 → #debug-messages に蓄積
- *      Debug 2 → 最新フレーム info (#debug2-frameinfo) を上書き
+ *  - 「Debug 1」は #debug-messages に蓄積
+ *  - 「Debug 2」は #debug2-frameinfo に最新フレームのみ上書き表示
+ *  - Canvasサイズをマップに合わせる (単純案)
+ *  - 敵"E"が動き、衝突でGame Over
  ******************************************************/
 
 /*********************************************************
- * 0) デバッグログ関連 (Debug 1 / Debug 2)
+ * 0) デバッグログ関連
  *********************************************************/
+// Debug 1: 蓄積
 function logDebug(tag, message) {
-  // Debug 1: 蓄積ログ
   const debugPanel = document.getElementById("debug-messages");
   if (!debugPanel) return;
 
@@ -24,7 +22,7 @@ function logDebug(tag, message) {
   debugPanel.scrollTop = debugPanel.scrollHeight;
 }
 
-// Debug 2: 最新フレームのステップを上書き表示
+// Debug 2: 最新フレーム
 function updateFrameInfo(frameNumber, steps) {
   const debug2 = document.getElementById("debug2-frameinfo");
   if (!debug2) return;
@@ -37,7 +35,7 @@ function updateFrameInfo(frameNumber, steps) {
 }
 
 /*********************************************************
- * 1) HTML要素取得・グローバル変数
+ * 1) HTML要素やグローバル変数
  *********************************************************/
 const levelSelect = document.getElementById("level-select");
 const startButton = document.getElementById("start-btn");
@@ -59,8 +57,6 @@ let imageCache    = {};
 let playerX       = 0;
 let playerY       = 0;
 let tileSize      = 64;
-
-// 敵関連
 let enemies       = [];
 let frameCount    = 0;
 
@@ -69,7 +65,6 @@ let frameCount    = 0;
  *********************************************************/
 window.addEventListener("load", () => {
   logDebug("INFO","Page loaded, start initialization");
-
   loadConfig()
     .then(() => loadAllMaps())
     .then(() => preloadImages())
@@ -84,7 +79,7 @@ window.addEventListener("load", () => {
 });
 
 /*********************************************************
- * 3) assets_config.json を読み込む
+ * 3) assets_config.json 読み込み
  *********************************************************/
 function loadConfig() {
   logDebug("EVENT","Loading assets_config.json...");
@@ -105,7 +100,7 @@ function loadConfig() {
 }
 
 /*********************************************************
- * 4) MapLevel.json を読み込む
+ * 4) MapLevel.json 読み込み
  *********************************************************/
 function loadAllMaps() {
   logDebug("EVENT","Loading MapLevel.json...");
@@ -122,7 +117,6 @@ function loadAllMaps() {
         throw new Error("MapLevel.json: 'levels' is not an array");
       }
       logDebug("OUTPUT","allLevels loaded successfully!");
-
       const statusEl = document.getElementById("map-status");
       if (statusEl) {
         statusEl.textContent = "Map loaded successfully!";
@@ -205,7 +199,7 @@ function startGame(level) {
   }
 
   currentMapData = mapData;
-  // Canvasサイズをマップ幅/高さに合わせる (単純案)
+  // Canvasをマップに合わせる (単純案)
   canvas.width  = currentMapData.width  * tileSize;
   canvas.height = currentMapData.height * tileSize;
   logDebug("INFO", `Canvas resized to ${canvas.width} x ${canvas.height}`);
@@ -215,7 +209,7 @@ function startGame(level) {
   isGamePlaying = true;
 
   logDebug("INFO","Game started with level=" + level);
-  frameCount = 0; // フレームカウンタリセット
+  frameCount = 0; 
   gameLoop();
 }
 
@@ -274,17 +268,17 @@ function gameLoop() {
   frameCount++;
   let steps = [];
 
-  steps.push("Updating enemies...");
+  steps.push("Enemies updating...");
   updateEnemies();
 
   steps.push("Drawing scene...");
   drawGame();
   drawEnemies();
 
-  steps.push("Collision check...");
+  steps.push("Collision checking...");
   checkCollisionWithEnemies();
 
-  // Debug 2: フレーム情報を上書き
+  // Debug 2: 最新フレームのステップを表示
   updateFrameInfo(frameCount, steps);
 
   requestAnimationFrame(gameLoop);
@@ -297,8 +291,6 @@ function updateEnemies() {
   for (let enemy of enemies) {
     enemy.x += enemy.speedX;
     enemy.y += enemy.speedY;
-
-    // 左右端を超えたら反転
     if (enemy.x < 1 || enemy.x > currentMapData.width - 2) {
       enemy.speedX *= -1;
     }
@@ -312,14 +304,13 @@ function drawEnemies() {
   for (let enemy of enemies) {
     const px = enemy.x * tileSize;
     const py = enemy.y * tileSize;
-
     ctx.fillStyle = enemy.color;
     ctx.fillRect(px, py, tileSize, tileSize);
   }
 }
 
 /*********************************************************
- * 13) 敵との当たり判定
+ * 13) 衝突判定 (プレイヤー - 敵)
  *********************************************************/
 function checkCollisionWithEnemies() {
   for (let enemy of enemies) {
@@ -333,11 +324,10 @@ function checkCollisionWithEnemies() {
 }
 
 /*********************************************************
- * 14) タイル + プレイヤー描画
+ * 14) 画面描画 (タイル + プレイヤー)
  *********************************************************/
 function drawGame() {
   if (!currentMapData) return;
-
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const tiles = currentMapData.tiles;
@@ -351,7 +341,7 @@ function drawGame() {
 }
 
 /*********************************************************
- * 15) タイル描画 (画像 or テキスト)
+ * 15) タイル描画
  *********************************************************/
 function drawTile(ch, col, row) {
   if (config && config.useAssets) {
@@ -392,7 +382,6 @@ function drawPlayer() {
   } else {
     ctx.fillStyle = "blue";
     ctx.fillRect(px, py, tileSize, tileSize);
-
     ctx.fillStyle = "white";
     ctx.font = "20px monospace";
     ctx.fillText("P", px + tileSize / 4, py + tileSize / 1.5);
@@ -449,7 +438,7 @@ function canMoveTo(x, y) {
 }
 
 /*********************************************************
- * 19) ゲームクリア
+ * 19) レベルクリア
  *********************************************************/
 function levelClear() {
   logDebug("OUTPUT","Level Clear!");
