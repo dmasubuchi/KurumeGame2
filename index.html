@@ -5,9 +5,9 @@
   <title>Maze Challenge (Single-page Layout)</title>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>　
-  <div id="container"> 
-    <!-- 左側: メニューやレベル選択 1-->
+<body>
+  <div id="container">
+    <!-- 左側: メニューやレベル選択 -->
     <div id="menu-section">
       <h2>Map Selection</h2>
       <label for="level-select">レベルを選んでください:</label>
@@ -31,6 +31,11 @@
 
       <p id="timer">
         Time Left: <span id="time-value">30</span> s
+      </p>
+
+      <!-- JSON読み込み状態を表示する要素。JSON読み込みOK/NGをここで表示 -->
+      <p id="map-status" style="color: red; font-weight: bold;">
+        (マップ読み込み待ち)
       </p>
     </div>
 

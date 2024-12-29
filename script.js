@@ -5,15 +5,17 @@
  *    全レベルのマップデータを読み込んでゲームをプレイ。
  *  - assets_config.json (同フォルダ) で画像アセットを設定。
  *  - index.html でレイアウト(左側にメニュー/右側にCanvas)。
+ * 
+ *  - 今回の変更点:
+ *    1) 敵キャラ "E" をマップ上で認識し、enemies 配列へ登録
+ *    2) 敵をゆっくり動かす (updateEnemies)
+ *    3) 敵を赤い四角で描画 (drawEnemies)
+ *    4) 敵とプレイヤーが接触したら GameOver
  ******************************************************/
 
 /*********************************************************
- * 変更点（★印が付いている行が改善ポイントや変更箇所）
+ * グローバル変数やHTML要素の取得
  *********************************************************/
-
-// ----------------------------------------------------
-// 1) HTML要素やグローバル変数の定義
-// ----------------------------------------------------
 const levelSelect     = document.getElementById("level-select");
 const startButton     = document.getElementById("start-btn");
 const endButton       = document.getElementById("end-btn");
@@ -21,50 +23,50 @@ const timeValue       = document.getElementById("time-value");
 const canvas          = document.getElementById("game-canvas");
 const ctx             = canvas.getContext("2d");
 
-// タイマー関連
-let timeLimit         = 30; // 30秒固定 (変更はご自由に)
+/*********************************************************
+ * タイマーやゲーム状態管理用
+ *********************************************************/
+let timeLimit         = 30; // 30秒固定
 let timeRemaining     = timeLimit;
 let timerInterval     = null;
 
-// ゲーム進行
 let isGamePlaying     = false;
 let currentMapData    = null;    // 現在プレイ中のマップ(tilesなど)
 let allLevels         = [];       // MapLevel.json の "levels" 配列
 let config            = null;     // assets_config.json の内容
 let imageCache        = {};       // 画像キャッシュ
 
-// プレイヤー情報
+/*********************************************************
+ * プレイヤーと敵関連
+ *********************************************************/
 let playerX           = 0;
 let playerY           = 0;
 let tileSize          = 64;       // タイル1枚のサイズ (ピクセル)
 
+// ★ 敵の配列を管理
+let enemies = [];  // { x, y, speedX, speedY, color }
 
-// ----------------------------------------------------
-// 2) ページ読み込み時の初期化処理
-// ----------------------------------------------------
+/*********************************************************
+ * ページ読み込み時
+ *********************************************************/
 window.addEventListener("load", () => {
-  // 順番:
-  // 1) assets_config.json を読み込み
-  // 2) MapLevel.json を読み込み (同ディレクトリ)
-  // 3) 画像プリロード
-  // 4) メニューやUIを初期化
   loadConfig()
-    .then(() => loadAllMaps()) 
+    .then(() => loadAllMaps())
     .then(() => preloadImages())
     .then(() => initMenu())
     .catch(err => {
       console.error("Initialization error:", err);
+      document.getElementById("map-status").textContent
+        = "Failed to load JSON: " + err.message;
     });
 });
 
-
-// ----------------------------------------------------
-// 3) assets_config.json を読み込む
-// ----------------------------------------------------
+/*********************************************************
+ * 1) assets_config.json を読み込む
+ *********************************************************/
 function loadConfig() {
   return fetch("assets_config.json")
     .then(response => {
-      // ★改善: エラー時にステータスも表示
       if (!response.ok) {
         throw new Error(`Failed to load assets_config.json (status: ${response.status})`);
       }
@@ -72,53 +74,45 @@ function loadConfig() {
     })
     .then(jsonData => {
       config = jsonData;
-      // tileSize の指定があれば上書き
       if (config.tileSize) {
         tileSize = config.tileSize;
       }
-      // ★改善: 読み込んだconfigを確認ログ
       console.log("★ config loaded:", config);
     });
 }
 
-
-// ----------------------------------------------------
-// 4) MapLevel.json (同ディレクトリ) を読み込む
-// ----------------------------------------------------
+/*********************************************************
+ * 2) MapLevel.json を読み込む
+ *********************************************************/
 function loadAllMaps() {
-  // 同じフォルダにある MapLevel.json を fetch
   return fetch("MapLevel.json")
     .then(response => {
-      // ★改善: ステータスコードを表示してデバッグしやすく
       if (!response.ok) {
         throw new Error(`Failed to load MapLevel.json (status: ${response.status})`);
       }
       return response.json();
     })
     .then(jsonData => {
-      // jsonData.levels に全レベルの配列が入っているはず
       allLevels = jsonData.levels;
       if (!Array.isArray(allLevels)) {
         throw new Error("MapLevel.json: 'levels' is not an array");
       }
-      // ★改善: 実際に読み込んだマップ配列をログ
       console.log("★ allLevels loaded:", allLevels);
+
+      document.getElementById("map-status").textContent = "Map loaded successfully!";
     });
 }
 
-
-// ----------------------------------------------------
-// 5) 画像アセットのプリロード
-// ----------------------------------------------------
+/*********************************************************
+ * 3) 画像アセットのプリロード
+ *********************************************************/
 function preloadImages() {
-  // 画像アセットを使わない設定 or configが未取得なら抜ける
   if (!config || !config.useAssets) {
     console.log("★ useAssets = false, skip image preload");
     return Promise.resolve();
   }
 
   const promises = [];
-  // config.images に定義されているキー(例: wall, floorなど)ごとにロード
   for (const key in config.images) {
     const src = config.images[key];
     if (!src) continue;
@@ -136,21 +130,17 @@ function preloadImages() {
       };
     });
     img.src = src;
-    imageCache[key] = img;  // 途中でも格納
+    imageCache[key] = img;
     promises.push(p);
   }
-
   return Promise.all(promises);
 }
 
-
-// ----------------------------------------------------
-// 6) メニュー初期化 (イベントリスナー設定など)
-// ----------------------------------------------------
+/*********************************************************
+ * 4) メニュー初期化
+ *********************************************************/
 function initMenu() {
-  // 「ゲーム開始」ボタン
   startButton.addEventListener("click", () => {
-    // ★改善: parseIntに失敗した場合の対応
     const levelValue = parseInt(levelSelect.value, 10);
     if (isNaN(levelValue)) {
       alert("レベルの値が不正です。");
@@ -159,26 +149,21 @@ function initMenu() {
     startGame(levelValue);
   });
 
-  // 「ゲーム終了」ボタン
   endButton.addEventListener("click", () => {
     endGame();
   });
 
-  // ★改善: メニューが初期化完了したことをログ
   console.log("★ Menu initialized");
 }
 
-
-// ----------------------------------------------------
-// 7) ゲーム開始
-// ----------------------------------------------------
+/*********************************************************
+ * 5) ゲーム開始
+ *********************************************************/
 function startGame(level) {
-  // 既にプレイ中ならリセット
   if (isGamePlaying) {
     endGame();
   }
 
-  // allLevels から選択レベルを検索
   const mapData = allLevels.find(l => l.id === level);
   if (!mapData) {
     alert("指定レベルが見つかりません (id: " + level + ")");
@@ -186,44 +171,51 @@ function startGame(level) {
     return;
   }
 
-  // ★改善: ログで確認
   console.log("★ startGame with level =", level, "mapData =", mapData);
 
   currentMapData = mapData;
   initGameState();
   initTimer();
   isGamePlaying = true;
-  // メインループ開始
+
   gameLoop();
 }
 
-
-// ----------------------------------------------------
-// 8) ゲーム状態の初期化
-// ----------------------------------------------------
+/*********************************************************
+ * 6) ゲーム状態の初期化 (プレイヤー位置 / 敵初期化)
+ *********************************************************/
 function initGameState() {
-  // タイマーリセット
   timeRemaining = timeLimit;
   timeValue.textContent = timeRemaining.toString();
 
-  // プレイヤー座標を S(スタート) に
+  enemies = [];  // 敵リストをリセット
+
   const tiles = currentMapData.tiles;
   for (let row = 0; row < currentMapData.height; row++) {
     for (let col = 0; col < currentMapData.width; col++) {
-      if (tiles[row][col] === "S") {
+      const ch = tiles[row][col];
+      if (ch === "S") {
         playerY = row;
         playerX = col;
       }
+      // ★ E を敵とみなし、enemiesに登録
+      else if (ch === "E") {
+        enemies.push({
+          x: col,
+          y: row,
+          speedX: 0.01,  // ゆっくり右へ動く
+          speedY: 0,
+          color: "red"   // 赤い四角で描画
+        });
+      }
     }
   }
-  // ★改善: 現在の座標をログ出力
   console.log(`★ initGameState, start at playerX=${playerX}, playerY=${playerY}`);
 }
 
-
-// ----------------------------------------------------
-// 9) タイマー開始
-// ----------------------------------------------------
+/*********************************************************
+ * 7) タイマー開始
+ *********************************************************/
 function initTimer() {
   clearInterval(timerInterval);
   timerInterval = setInterval(() => {
@@ -237,31 +229,80 @@ function initTimer() {
   console.log("★ Timer started");
 }
 
-
-// ----------------------------------------------------
-// 10) メインループ
-// ----------------------------------------------------
+/*********************************************************
+ * 8) メインループ
+ *********************************************************/
 function gameLoop() {
   if (!isGamePlaying) return;
 
-  // 描画
-  drawGame();
+  // 敵を更新
+  updateEnemies();
 
-  // 次フレーム
+  // 画面描画
+  drawGame();
+  drawEnemies();
+
+  // 敵との当たり判定
+  checkCollisionWithEnemies();
+
   requestAnimationFrame(gameLoop);
 }
 
+/*********************************************************
+ * 9) 敵を更新 (速度で移動, 端で反転)
+ *********************************************************/
+function updateEnemies() {
+  for (let enemy of enemies) {
+    enemy.x += enemy.speedX;
+    enemy.y += enemy.speedY;
 
-// ----------------------------------------------------
-// 11) 描画処理
-// ----------------------------------------------------
+    // 壁衝突など細かい判定は省略し、マップ左右端で反転
+    if (enemy.x < 1 || enemy.x > currentMapData.width - 2) {
+      enemy.speedX *= -1;
+    }
+  }
+}
+
+/*********************************************************
+ * 10) 敵を描画 (四角形)
+ *********************************************************/
+function drawEnemies() {
+  for (let enemy of enemies) {
+    let px = enemy.x * tileSize;
+    let py = enemy.y * tileSize;
+
+    // 画像を使う場合はここで drawImage(enemyImg, px, py, tileSize, tileSize)
+    // 今回は単純に色付きの四角で描画
+    ctx.fillStyle = enemy.color;
+    ctx.fillRect(px, py, tileSize, tileSize);
+  }
+}
+
+/*********************************************************
+ * 11) 敵との当たり判定
+ *********************************************************/
+function checkCollisionWithEnemies() {
+  for (let enemy of enemies) {
+    // 敵座標は小数、プレイヤーは整数タイル座標
+    // 同じタイルにいるかどうか判定
+    let ex = Math.floor(enemy.x + 0.5);
+    let ey = Math.floor(enemy.y + 0.5);
+
+    if (ex === playerX && ey === playerY) {
+      gameOver("敵に触れた！");
+      return;
+    }
+  }
+}
+
+/*********************************************************
+ * 12) 画面描画 (タイル + プレイヤー)
+ *********************************************************/
 function drawGame() {
   if (!currentMapData) return;
 
-  // Canvasクリア
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // タイルを描画
   const tiles = currentMapData.tiles;
   for (let row = 0; row < currentMapData.height; row++) {
     for (let col = 0; col < currentMapData.width; col++) {
@@ -270,24 +311,21 @@ function drawGame() {
     }
   }
 
-  // プレイヤー描画
   drawPlayer();
 }
 
-
-// ----------------------------------------------------
-// 12) タイルの描画 (画像 or テキスト)
-// ----------------------------------------------------
+/*********************************************************
+ * 13) タイル描画 (画像 or テキスト)
+ *********************************************************/
 function drawTile(ch, col, row) {
   if (config && config.useAssets) {
-    // 画像が使える場合
+    // 画像アセットある場合
     let key = null;
     switch (ch) {
       case '#': key = 'wall';  break;
       case 'S': key = 'start'; break;
       case 'G': key = 'goal';  break;
       default:
-        // 床その他
         key = 'floor';
         break;
     }
@@ -296,7 +334,6 @@ function drawTile(ch, col, row) {
       ctx.drawImage(img, col * tileSize, row * tileSize, tileSize, tileSize);
       return;
     }
-    // 画像ロード失敗時はフォールバック
   }
 
   // テキスト(ASCII)描画
@@ -307,20 +344,17 @@ function drawTile(ch, col, row) {
   ctx.fillText(ch, col * tileSize + 16, row * tileSize + 32);
 }
 
-
-// ----------------------------------------------------
-// 13) プレイヤー描画
-// ----------------------------------------------------
+/*********************************************************
+ * 14) プレイヤー描画
+ *********************************************************/
 function drawPlayer() {
   if (!currentMapData) return;
-
   const px = playerX * tileSize;
   const py = playerY * tileSize;
 
   if (config && config.useAssets && imageCache["player"]) {
     ctx.drawImage(imageCache["player"], px, py, tileSize, tileSize);
   } else {
-    // ASCII or 四角でプレイヤーを表現
     ctx.fillStyle = "blue";
     ctx.fillRect(px, py, tileSize, tileSize);
 
@@ -330,10 +364,9 @@ function drawPlayer() {
   }
 }
 
-
-// ----------------------------------------------------
-// 14) キーボード操作 (上下左右 移動)
-// ----------------------------------------------------
+/*********************************************************
+ * 15) キーボード操作 (上下左右移動)
+ *********************************************************/
 document.addEventListener("keydown", (e) => {
   if (!isGamePlaying) return;
 
@@ -362,10 +395,9 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-
-// ----------------------------------------------------
-// 15) 移動可能か判定 (壁,トラップなど)
-// ----------------------------------------------------
+/*********************************************************
+ * 16) 移動可能か判定 (壁,トラップなど)
+ *********************************************************/
 function canMoveTo(x, y) {
   if (!currentMapData) return false;
   if (y < 0 || y >= currentMapData.height) return false;
@@ -373,39 +405,33 @@ function canMoveTo(x, y) {
 
   const ch = currentMapData.tiles[y][x];
   if (ch === '#') {
-    // 壁
     return false;
   }
-
-  // T (トラップ), W (動く壁), E (敵) などの処理は拡張
+  // T, W, E等はここでは通れる扱い (Eは敵)
   return true;
 }
 
-
-// ----------------------------------------------------
-// 16) ゲームクリア
-// ----------------------------------------------------
+/*********************************************************
+ * 17) ゲームクリア
+ *********************************************************/
 function levelClear() {
   alert("Level Clear!");
   endGame();
 }
 
-
-// ----------------------------------------------------
-// 17) ゲームオーバー
-// ----------------------------------------------------
+/*********************************************************
+ * 18) ゲームオーバー
+ *********************************************************/
 function gameOver(message) {
   alert(message);
   endGame();
 }
 
-
-// ----------------------------------------------------
-// 18) ゲーム終了
-// ----------------------------------------------------
+/*********************************************************
+ * 19) ゲーム終了
+ *********************************************************/
 function endGame() {
   isGamePlaying = false;
   clearInterval(timerInterval);
   console.log("★ endGame called, game stopped");
-  // 他に初期化する項目があれば実施
 }
