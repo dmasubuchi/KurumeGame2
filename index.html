@@ -2,13 +2,18 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>Maze Challenge (Single-page Layout)</title>
+  <title>Maze Challenge (Single-page Layout + Debug Log)</title>
   <link rel="stylesheet" href="style.css" />
+  <!-- 
+    style.css の内容は省略していますが、
+    #container, #menu-section, #game-section, #debug-section の
+    レイアウトを調整するCSSを記述してください。
+  -->
 </head>
 <body>
-  <div id="container">
-    <!-- 左側: メニューやレベル選択 -->
-    <div id="menu-section">
+  <div id="container" style="display: flex; height: 100vh;">
+    <!-- 左側: メニューやレベル選択 (固定幅) -->
+    <div id="menu-section" style="width: 280px; background:#eee; border-right:1px solid #999; padding:10px; box-sizing: border-box;">
       <h2>Map Selection</h2>
       <label for="level-select">レベルを選んでください:</label>
       <select id="level-select">
@@ -24,24 +29,39 @@
         <option value="10">Level 10</option>
       </select>
 
-      <div class="buttons">
-        <button id="start-btn">ゲーム開始</button>
+      <div class="buttons" style="margin-top: 10px;">
+        <button id="start-btn" style="margin-right:5px;">ゲーム開始</button>
         <button id="end-btn">ゲーム終了</button>
       </div>
 
-      <p id="timer">
+      <p id="timer" style="margin: 10px 0;">
         Time Left: <span id="time-value">30</span> s
       </p>
 
-      <!-- JSON読み込み状態を表示する要素。JSON読み込みOK/NGをここで表示 -->
+      <!-- JSON 読み込み状態表示 -->
       <p id="map-status" style="color: red; font-weight: bold;">
         (マップ読み込み待ち)
       </p>
     </div>
 
-    <!-- 右側: ゲームプレイ領域 -->
-    <div id="game-section">
-      <canvas id="game-canvas" width="640" height="512"></canvas>
+    <!-- 中央: ゲームプレイ領域 -->
+    <div id="game-section" style="flex:1; background:#fff; display:flex; justify-content:center; align-items:center;">
+      <canvas id="game-canvas" width="640" height="512" style="border:2px solid #333;"></canvas>
+    </div>
+
+    <!-- 右側: デバッグログ表示領域 -->
+    <div id="debug-section" style="width: 300px; background:#fafafa; border-left:1px solid #999; padding:10px; box-sizing: border-box;">
+      <h2>Debug Log</h2>
+      <div id="debug-messages" style="
+        width: 100%;
+        height: 600px;
+        overflow-y: auto;
+        background: #fff;
+        border:1px solid #ccc;
+        padding:5px;
+        box-sizing: border-box;">
+        <!-- logDebug() で追記されるメッセージ一覧 -->
+      </div>
     </div>
   </div>
 
