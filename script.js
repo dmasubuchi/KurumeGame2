@@ -3,9 +3,13 @@
  * 
  *  - MapLevel.json (同じディレクトリに配置) から
  *    全レベルのマップデータを読み込んでゲームをプレイ。
- *  - assets_config.json (同じフォルダ) で画像アセットを設定。
+ *  - assets_config.json (同フォルダ) で画像アセットを設定。
  *  - index.html でレイアウト(左側にメニュー/右側にCanvas)。
  ******************************************************/
+
+/*********************************************************
+ * 変更点（★印が付いている行が改善ポイントや変更箇所）
+ *********************************************************/
 
 // ----------------------------------------------------
 // 1) HTML要素やグローバル変数の定義
@@ -60,8 +64,9 @@ window.addEventListener("load", () => {
 function loadConfig() {
   return fetch("assets_config.json")
     .then(response => {
+      // ★改善: エラー時にステータスも表示
       if (!response.ok) {
-        throw new Error("Failed to load assets_config.json");
+        throw new Error(`Failed to load assets_config.json (status: ${response.status})`);
       }
       return response.json();
     })
@@ -71,6 +76,8 @@ function loadConfig() {
       if (config.tileSize) {
         tileSize = config.tileSize;
       }
+      // ★改善: 読み込んだconfigを確認ログ
+      console.log("★ config loaded:", config);
     });
 }
 
@@ -82,8 +89,9 @@ function loadAllMaps() {
   // 同じフォルダにある MapLevel.json を fetch
   return fetch("MapLevel.json")
     .then(response => {
+      // ★改善: ステータスコードを表示してデバッグしやすく
       if (!response.ok) {
-        throw new Error("Failed to load MapLevel.json");
+        throw new Error(`Failed to load MapLevel.json (status: ${response.status})`);
       }
       return response.json();
     })
@@ -93,6 +101,8 @@ function loadAllMaps() {
       if (!Array.isArray(allLevels)) {
         throw new Error("MapLevel.json: 'levels' is not an array");
       }
+      // ★改善: 実際に読み込んだマップ配列をログ
+      console.log("★ allLevels loaded:", allLevels);
     });
 }
 
@@ -103,6 +113,7 @@ function loadAllMaps() {
 function preloadImages() {
   // 画像アセットを使わない設定 or configが未取得なら抜ける
   if (!config || !config.useAssets) {
+    console.log("★ useAssets = false, skip image preload");
     return Promise.resolve();
   }
 
@@ -114,7 +125,10 @@ function preloadImages() {
 
     const img = new Image();
     const p = new Promise((resolve) => {
-      img.onload = () => resolve();
+      img.onload = () => {
+        console.log(`★ Image loaded: ${src}`);
+        resolve();
+      };
       img.onerror = () => {
         console.warn("Failed to load image:", src);
         imageCache[key] = null;
@@ -136,14 +150,22 @@ function preloadImages() {
 function initMenu() {
   // 「ゲーム開始」ボタン
   startButton.addEventListener("click", () => {
-    const level = parseInt(levelSelect.value, 10);
-    startGame(level);
+    // ★改善: parseIntに失敗した場合の対応
+    const levelValue = parseInt(levelSelect.value, 10);
+    if (isNaN(levelValue)) {
+      alert("レベルの値が不正です。");
+      return;
+    }
+    startGame(levelValue);
   });
 
   // 「ゲーム終了」ボタン
   endButton.addEventListener("click", () => {
     endGame();
   });
+
+  // ★改善: メニューが初期化完了したことをログ
+  console.log("★ Menu initialized");
 }
 
 
@@ -160,8 +182,12 @@ function startGame(level) {
   const mapData = allLevels.find(l => l.id === level);
   if (!mapData) {
     alert("指定レベルが見つかりません (id: " + level + ")");
+    console.warn("★ mapData is undefined for level:", level);
     return;
   }
+
+  // ★改善: ログで確認
+  console.log("★ startGame with level =", level, "mapData =", mapData);
 
   currentMapData = mapData;
   initGameState();
@@ -190,6 +216,8 @@ function initGameState() {
       }
     }
   }
+  // ★改善: 現在の座標をログ出力
+  console.log(`★ initGameState, start at playerX=${playerX}, playerY=${playerY}`);
 }
 
 
@@ -206,6 +234,7 @@ function initTimer() {
       gameOver("Time Up! Game Over!");
     }
   }, 1000);
+  console.log("★ Timer started");
 }
 
 
@@ -377,5 +406,6 @@ function gameOver(message) {
 function endGame() {
   isGamePlaying = false;
   clearInterval(timerInterval);
+  console.log("★ endGame called, game stopped");
   // 他に初期化する項目があれば実施
 }
