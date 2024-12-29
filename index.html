@@ -64,7 +64,26 @@
         <!-- logDebug() で追記されるメッセージ一覧 -->
       </div>
     </div>
+
+    <!-- すでにある Debug 1 (ログ一覧) ... -->
+
+    <!-- 新しく Debug 2 パネルを設置 -->
+    <div id="debug2-section" style="width: 300px; background:#fafafa; border-left:1px solid #999; padding:10px;">
+      <h2>Debug 2: Latest Frame Info</h2>
+      <div id="debug2-frameinfo" style="
+        width: 100%;
+        height: 200px;
+        background: #fff;
+        border:1px solid #ccc;
+        padding:5px;
+        overflow-y: auto;">
+        <!-- ここに最新フレームのステップを上書き表示 -->
+      </div>
+    </div>
+
   </div>
+
+  
 
   <!-- スクリプト読み込み -->
   <script src="script.js"></script>

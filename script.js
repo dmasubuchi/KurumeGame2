@@ -1,20 +1,18 @@
 /******************************************************
  * script.js
  * 
- *  - MapLevel.json (同ディレクトリ) から
- *    全レベルのマップデータを読み込み、ゲームをプレイ
- *  - assets_config.json (同フォルダ) で画像アセット設定
- *  - index.html でレイアウト(左：メニュー、中央：Canvas、右：デバッグログ)
- * 
- *  - 今回の要点:
- *    A) 単純案: Canvasのサイズをマップに合わせて自動設定
- *       → 大きなマップはブラウザ側でスクロールされる
- *    B) 敵" E "がゆっくり動き、衝突するとゲームオーバー
+ * このバージョンでは:
+ *   1) 既存の Debug Log (Debug 1) で履歴を蓄積
+ *   2) 新たに Debug 2 として「最新フレームの情報」を上書き表示する機能を追加
+ *   3) 単純案: Canvasのサイズをマップごとに合わせる
+ *   4) 敵 "E" がゆっくり動き、衝突するとGame Over
  ******************************************************/
 
 /*********************************************************
- * 0) デバッグログ出力用関数
+ * 0) デバッグログ関連 (Debug 1 / Debug 2)
  *********************************************************/
+
+// ★ Debug 1 (蓄積型ログ)
 function logDebug(tag, message) {
   const debugPanel = document.getElementById("debug-messages");
   if (!debugPanel) return;
@@ -22,9 +20,20 @@ function logDebug(tag, message) {
   const now = new Date().toLocaleTimeString();
   const line = document.createElement("div");
   line.textContent = `[${now}] [${tag}] ${message}`;
-
   debugPanel.appendChild(line);
   debugPanel.scrollTop = debugPanel.scrollHeight;
+}
+
+// ★ Debug 2 (最新フレーム情報を上書き表示)
+function updateFrameInfo(frameNumber, steps) {
+  const debug2 = document.getElementById("debug2-frameinfo");
+  if (!debug2) return;
+
+  let content = `Frame #${frameNumber}\n`;
+  for (let step of steps) {
+    content += " - " + step + "\n";
+  }
+  debug2.textContent = content;
 }
 
 /*********************************************************
@@ -37,22 +46,24 @@ const timeValue       = document.getElementById("time-value");
 const canvas          = document.getElementById("game-canvas");
 const ctx             = canvas.getContext("2d");
 
-let timeLimit         = 30; 
+// タイマー関連
+let timeLimit         = 30;
 let timeRemaining     = timeLimit;
 let timerInterval     = null;
 
+// ゲーム状態
 let isGamePlaying     = false;
 let currentMapData    = null;  
 let allLevels         = [];       
 let config            = null;     
 let imageCache        = {};
 
+// プレイヤーと敵関連
 let playerX           = 0;
 let playerY           = 0;
 let tileSize          = 64;       
-
-// 敵管理
-let enemies = []; 
+let enemies           = [];       // 敵オブジェクト用
+let frameCount        = 0;        // フレーム番号
 
 /*********************************************************
  * 2) ページ読み込み時
@@ -194,8 +205,7 @@ function startGame(level) {
 
   currentMapData = mapData;
 
-  // ★ 単純案: Canvasサイズをマップに合わせる
-  // 幅 * tileSize, 高さ * tileSize
+  // 単純案: Canvasの幅/高さをマップに合わせる
   canvas.width  = currentMapData.width  * tileSize;
   canvas.height = currentMapData.height * tileSize;
   logDebug("INFO", `Canvas resized to ${canvas.width} x ${canvas.height}`);
@@ -205,11 +215,12 @@ function startGame(level) {
   isGamePlaying = true;
 
   logDebug("INFO","Game started with level=" + level);
+  frameCount = 0; // フレームカウント初期化
   gameLoop();
 }
 
 /*********************************************************
- * 8) ゲーム状態の初期化 (プレイヤー位置 / 敵初期化)
+ * 8) ゲーム状態の初期化
  *********************************************************/
 function initGameState() {
   timeRemaining = timeLimit;
@@ -261,23 +272,34 @@ function initTimer() {
 function gameLoop() {
   if (!isGamePlaying) return;
 
+  frameCount++;
+  let steps = [];
+
+  // (例) 
+  steps.push("Updating enemies...");
   updateEnemies();
+
+  steps.push("Drawing scene...");
   drawGame();
   drawEnemies();
+
+  steps.push("Collision check...");
   checkCollisionWithEnemies();
+
+  // Debug 2: フレーム情報をまとめて表示
+  updateFrameInfo(frameCount, steps);
 
   requestAnimationFrame(gameLoop);
 }
 
 /*********************************************************
- * 11) 敵を更新 (速度で移動, 端で反転)
+ * 11) 敵を更新 (端で反転)
  *********************************************************/
 function updateEnemies() {
   for (let enemy of enemies) {
     enemy.x += enemy.speedX;
     enemy.y += enemy.speedY;
 
-    // 簡易的に左右端で反転
     if (enemy.x < 1 || enemy.x > currentMapData.width - 2) {
       enemy.speedX *= -1;
     }
@@ -285,7 +307,7 @@ function updateEnemies() {
 }
 
 /*********************************************************
- * 12) 敵を描画 (四角形)
+ * 12) 敵を描画
  *********************************************************/
 function drawEnemies() {
   for (let enemy of enemies) {
@@ -302,10 +324,8 @@ function drawEnemies() {
  *********************************************************/
 function checkCollisionWithEnemies() {
   for (let enemy of enemies) {
-    // 敵は小数, プレイヤーは整数
     let ex = Math.floor(enemy.x + 0.5);
     let ey = Math.floor(enemy.y + 0.5);
-
     if (ex === playerX && ey === playerY) {
       gameOver("敵に触れた！");
       return;
@@ -324,8 +344,7 @@ function drawGame() {
   const tiles = currentMapData.tiles;
   for (let row = 0; row < currentMapData.height; row++) {
     for (let col = 0; col < currentMapData.width; col++) {
-      const ch = tiles[row][col];
-      drawTile(ch, col, row);
+      drawTile(tiles[row][col], col, row);
     }
   }
 
@@ -408,6 +427,7 @@ document.addEventListener("keydown", (e) => {
   playerY = newY;
   logDebug("INFO", `Player moved to (${playerX},${playerY})`);
 
+  // ゴール判定
   const ch = currentMapData.tiles[newY][newX];
   if (ch === 'G') {
     levelClear();
