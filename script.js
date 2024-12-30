@@ -1,18 +1,21 @@
 /******************************************************
  * script.js
  * 
- * 【ポイント】
- *   1) フレーム単位の処理が行われるたびに、コンソールにもフレーム番号やステップを出力 (console.log)
- *   2) Debug 2: 画面右側の #debug2-frameinfo に最新フレームのステップ情報を上書き表示
- *   3) Debug 1: 画面右側の #debug-messages に履歴ログを蓄積
- *   4) Canvasサイズをマップ幅×tileSizeで合わせる (単純案)
- *   5) 敵"E"がゆっくり動き、当たればGameOver
+ * ポイント:
+ *   1) フレームごとの処理を細かく行い、それぞれの関数がログ文字列を返す
+ *   2) ゲームループ (gameLoop) は最小限の呼び出しだけ行い、
+ *      各処理関数の戻り値(ログ文字列)をまとめて steps.push(...) する
+ *   3) 最後に addFrameLog(frameCount, steps) で Debug 2 に表示
+ *   4) Debug 1 (logDebug) は従来の蓄積ログ: キー入力や開始/終了など
+ *   5) Canvasサイズをマップ幅×tileSizeに合わせる (単純案)
+ *   6) 敵"E"をゆっくり動かし、衝突でGameOver
  ******************************************************/
 
 /*********************************************************
  * 0) デバッグログ関連
  *********************************************************/
-// Debug 1 (蓄積ログ)
+
+// Debug 1: 蓄積ログ (イベントやキー入力など)
 function logDebug(tag, message) {
   const debugPanel = document.getElementById("debug-messages");
   if (!debugPanel) return;
@@ -25,21 +28,30 @@ function logDebug(tag, message) {
   debugPanel.scrollTop = debugPanel.scrollHeight;
 }
 
-// Debug 2 (最新フレーム情報)
-function updateFrameInfo(frameNumber, steps) {
+// Debug 2: フレームごとの詳細を行追加 (履歴として蓄積)
+function addFrameLog(frameNumber, steps) {
   const debug2 = document.getElementById("debug2-frameinfo");
   if (!debug2) return;
 
-  // フレームごとのステップをまとめて１つの文字列に
-  let content = `Frame #${frameNumber}\n`;
+  let now = new Date().toLocaleTimeString();
+  let content = `[${now}] Frame #${frameNumber}\n`;
   for (let step of steps) {
     content += " - " + step + "\n";
   }
-  debug2.textContent = content;
+
+  // 1フレームごとに <div> 追加
+  const div = document.createElement("div");
+  div.style.borderBottom = "1px dashed #ccc";
+  div.style.marginBottom = "5px";
+  div.style.whiteSpace = "pre"; // 改行を活かす
+  div.textContent = content;
+
+  debug2.appendChild(div);
+  debug2.scrollTop = debug2.scrollHeight;
 }
 
 /*********************************************************
- * 1) HTML要素やグローバル変数
+ * 1) HTML要素やグローバル変数の定義
  *********************************************************/
 const levelSelect = document.getElementById("level-select");
 const startButton = document.getElementById("start-btn");
@@ -62,16 +74,14 @@ let playerX       = 0;
 let playerY       = 0;
 let tileSize      = 64;
 
-// 敵関連
 let enemies       = [];
-let frameCount    = 0;  // 毎フレームインクリメント
+let frameCount    = 0;
 
 /*********************************************************
- * 2) ページ読み込み時
+ * 2) ページ読み込み時 (初期化の流れ)
  *********************************************************/
 window.addEventListener("load", () => {
-  logDebug("INFO","Page loaded, start initialization");
-
+  logDebug("INFO","Page loaded. Start initialization...");
   loadConfig()
     .then(() => loadAllMaps())
     .then(() => preloadImages())
@@ -86,7 +96,7 @@ window.addEventListener("load", () => {
 });
 
 /*********************************************************
- * 3) assets_config.json を読み込む
+ * 3) assets_config.json 読み込み
  *********************************************************/
 function loadConfig() {
   logDebug("EVENT","Loading assets_config.json...");
@@ -102,12 +112,12 @@ function loadConfig() {
       if (config.tileSize) {
         tileSize = config.tileSize;
       }
-      logDebug("OUTPUT","config loaded: " + JSON.stringify(config));
+      logDebug("OUTPUT", "config loaded: " + JSON.stringify(config));
     });
 }
 
 /*********************************************************
- * 4) MapLevel.json を読み込む
+ * 4) MapLevel.json 読み込み
  *********************************************************/
 function loadAllMaps() {
   logDebug("EVENT","Loading MapLevel.json...");
@@ -132,14 +142,13 @@ function loadAllMaps() {
 }
 
 /*********************************************************
- * 5) 画像アセットのプリロード
+ * 5) 画像のプリロード
  *********************************************************/
 function preloadImages() {
   if (!config || !config.useAssets) {
-    logDebug("INFO","useAssets = false, skip image preload");
+    logDebug("INFO","useAssets = false, skip images");
     return Promise.resolve();
   }
-
   logDebug("EVENT","Preloading images...");
   const promises = [];
   for (const key in config.images) {
@@ -170,7 +179,6 @@ function preloadImages() {
  *********************************************************/
 function initMenu() {
   logDebug("EVENT","initMenu called");
-
   startButton.addEventListener("click", () => {
     logDebug("INPUT","[Button] Start clicked");
     const levelValue = parseInt(levelSelect.value, 10);
@@ -180,12 +188,10 @@ function initMenu() {
     }
     startGame(levelValue);
   });
-
   endButton.addEventListener("click", () => {
     logDebug("INPUT","[Button] End clicked");
     endGame();
   });
-
   logDebug("INFO","Menu initialized");
 }
 
@@ -194,19 +200,17 @@ function initMenu() {
  *********************************************************/
 function startGame(level) {
   logDebug("EVENT",`startGame(level=${level})`);
-  if (isGamePlaying) {
-    endGame();
-  }
+  if (isGamePlaying) endGame();
 
   const mapData = allLevels.find(l => l.id === level);
   if (!mapData) {
-    alert("指定レベルが見つかりません (id: " + level + ")");
-    logDebug("WARN","mapData is undefined for level " + level);
+    alert("指定レベルが見つかりません (id:"+level+")");
+    logDebug("WARN","mapData undefined for level="+level);
     return;
   }
 
   currentMapData = mapData;
-  // Canvasをマップサイズに合わせる (単純案)
+  // Canvasをマップに合わせる
   canvas.width  = currentMapData.width  * tileSize;
   canvas.height = currentMapData.height * tileSize;
   logDebug("INFO", `Canvas resized to ${canvas.width} x ${canvas.height}`);
@@ -214,21 +218,20 @@ function startGame(level) {
   initGameState();
   initTimer();
   isGamePlaying = true;
-  
-  logDebug("INFO","Game started with level=" + level);
+  frameCount = 0;
 
-  frameCount = 0; // フレームカウンタリセット
+  logDebug("INFO","Game started with level="+level);
   gameLoop();
 }
 
 /*********************************************************
- * 8) ゲーム状態の初期化
+ * 8) ゲーム状態初期化
  *********************************************************/
 function initGameState() {
   timeRemaining = timeLimit;
-  timeValue.textContent = timeRemaining.toString();
+  timeValue.textContent = timeRemaining;
 
-  enemies = []; // 敵をリセット
+  enemies = [];
 
   const tiles = currentMapData.tiles;
   for (let row = 0; row < currentMapData.height; row++) {
@@ -260,9 +263,9 @@ function initTimer() {
   timerInterval = setInterval(() => {
     if (!isGamePlaying) return;
     timeRemaining--;
-    timeValue.textContent = timeRemaining.toString();
+    timeValue.textContent = timeRemaining;
     if (timeRemaining <= 0) {
-      gameOver("Time Up! Game Over!");
+      gameOver("Time Up! GameOver!");
     }
   }, 1000);
   logDebug("INFO","Timer started");
@@ -275,118 +278,121 @@ function gameLoop() {
   if (!isGamePlaying) return;
 
   frameCount++;
-  // 毎フレームのステップを配列に記録
-  let steps = [];
 
-  steps.push("Updating enemies");
-  updateEnemies();
+  // ▼ 各処理ごとにログ用文字列を集める
+  const steps = [];
+  steps.push(handleInput());
+  steps.push(updateEnemies());
+  steps.push(updatePlayer());
+  steps.push(checkCollision());
+  steps.push(drawScene());
 
-  steps.push("Drawing scene");
-  drawGame();
-  drawEnemies();
+  // Debug 2: フレームログ蓄積
+  addFrameLog(frameCount, steps);
 
-  steps.push("Collision check");
-  checkCollisionWithEnemies();
-
-  // Debug 2 用: フレーム内容を表示
-  updateFrameInfo(frameCount, steps);
-
-  // ★ コンソールにも出力
-  console.log(`[FRAME] #${frameCount}`, steps);
-
-  // 次フレーム
   requestAnimationFrame(gameLoop);
 }
 
 /*********************************************************
- * 11) 敵を更新
+ * 11) 入力処理 (例)
+ *********************************************************/
+function handleInput() {
+  // ここで実際にはキー状態などを見てプレイヤー移動判定
+  // 今回は簡略化
+  let inputHappened = false; 
+  // ... placeholder
+  return inputHappened ? "Handled input" : "No input this frame";
+}
+
+/*********************************************************
+ * 12) 敵を更新
  *********************************************************/
 function updateEnemies() {
   for (let enemy of enemies) {
     enemy.x += enemy.speedX;
     enemy.y += enemy.speedY;
-
     // 左右端で反転
     if (enemy.x < 1 || enemy.x > currentMapData.width - 2) {
       enemy.speedX *= -1;
     }
   }
+  return `Updated enemies (count=${enemies.length})`;
 }
 
 /*********************************************************
- * 12) 敵を描画
+ * 13) プレイヤー更新
  *********************************************************/
-function drawEnemies() {
-  for (let enemy of enemies) {
-    let px = enemy.x * tileSize;
-    let py = enemy.y * tileSize;
-    ctx.fillStyle = enemy.color;
-    ctx.fillRect(px, py, tileSize, tileSize);
-  }
+function updatePlayer() {
+  // 実際にはキー押下でplayerX,playerYを変える等
+  // 今回は省略
+  return `Player=(${playerX},${playerY}) updated`;
 }
 
 /*********************************************************
- * 13) 衝突判定(敵)
+ * 14) 衝突判定 (敵)
  *********************************************************/
-function checkCollisionWithEnemies() {
+function checkCollision() {
   for (let enemy of enemies) {
     const ex = Math.floor(enemy.x + 0.5);
     const ey = Math.floor(enemy.y + 0.5);
     if (ex === playerX && ey === playerY) {
       gameOver("敵に触れた！");
-      return;
+      return "Collision -> GameOver";
     }
   }
+  return "Collision check done";
 }
 
 /*********************************************************
- * 14) 画面描画(タイル + プレイヤー)
+ * 15) 描画処理
  *********************************************************/
-function drawGame() {
-  if (!currentMapData) return;
+function drawScene() {
+  if (!currentMapData) return "No map data";
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  // タイル描画
   const tiles = currentMapData.tiles;
   for (let row = 0; row < currentMapData.height; row++) {
     for (let col = 0; col < currentMapData.width; col++) {
       drawTile(tiles[row][col], col, row);
     }
   }
-
+  // プレイヤー
   drawPlayer();
+  // 敵
+  drawEnemies();
+
+  return "Scene drawn (tiles+player+enemies)";
 }
 
 /*********************************************************
- * 15) タイル描画
+ * 16) タイル描画
  *********************************************************/
 function drawTile(ch, col, row) {
   if (config && config.useAssets) {
     let key = null;
     switch (ch) {
-      case '#': key = 'wall';  break;
-      case 'S': key = 'start'; break;
-      case 'G': key = 'goal';  break;
-      default:
-        key = 'floor';
-        break;
+      case '#': key='wall';  break;
+      case 'S': key='start'; break;
+      case 'G': key='goal';  break;
+      default:  key='floor'; break;
     }
     const img = imageCache[key];
     if (img) {
-      ctx.drawImage(img, col * tileSize, row * tileSize, tileSize, tileSize);
+      ctx.drawImage(img, col*tileSize, row*tileSize, tileSize, tileSize);
       return;
     }
   }
-
   ctx.fillStyle = "white";
-  ctx.fillRect(col * tileSize, row * tileSize, tileSize, tileSize);
+  ctx.fillRect(col*tileSize, row*tileSize, tileSize, tileSize);
 
   ctx.fillStyle = "black";
   ctx.font = "16px monospace";
-  ctx.fillText(ch, col * tileSize + 16, row * tileSize + 32);
+  ctx.fillText(ch, col*tileSize+16, row*tileSize+32);
 }
 
 /*********************************************************
- * 16) プレイヤー描画
+ * 17) プレイヤー描画
  *********************************************************/
 function drawPlayer() {
   if (!currentMapData) return;
@@ -398,25 +404,23 @@ function drawPlayer() {
   } else {
     ctx.fillStyle = "blue";
     ctx.fillRect(px, py, tileSize, tileSize);
-
     ctx.fillStyle = "white";
     ctx.font = "20px monospace";
-    ctx.fillText("P", px + tileSize / 4, py + tileSize / 1.5);
+    ctx.fillText("P", px+tileSize/4, py+tileSize/1.5);
   }
 }
 
 /*********************************************************
- * 17) キーボード操作 (上下左右)
+ * 18) キーボード操作 (上下左右)
  *********************************************************/
 document.addEventListener("keydown", (e) => {
   if (!isGamePlaying) return;
 
   logDebug("INPUT","KeyDown: " + e.key);
-
   let newX = playerX;
   let newY = playerY;
 
-  switch (e.key) {
+  switch(e.key){
     case "ArrowUp":    newY--; break;
     case "ArrowDown":  newY++; break;
     case "ArrowLeft":  newX--; break;
@@ -425,7 +429,7 @@ document.addEventListener("keydown", (e) => {
   }
 
   if (!canMoveTo(newX, newY)) {
-    logDebug("OUTPUT","Cannot move to " + newX + "," + newY);
+    logDebug("OUTPUT", `Cannot move to (${newX},${newY})`);
     return;
   }
 
@@ -433,6 +437,7 @@ document.addEventListener("keydown", (e) => {
   playerY = newY;
   logDebug("INFO", `Player moved to (${playerX},${playerY})`);
 
+  // ゴール判定
   const ch = currentMapData.tiles[newY][newX];
   if (ch === 'G') {
     levelClear();
@@ -440,12 +445,12 @@ document.addEventListener("keydown", (e) => {
 });
 
 /*********************************************************
- * 18) 移動可能か判定
+ * 19) 移動可能か判定
  *********************************************************/
-function canMoveTo(x, y) {
+function canMoveTo(x, y){
   if (!currentMapData) return false;
-  if (y < 0 || y >= currentMapData.height) return false;
-  if (x < 0 || x >= currentMapData.width) return false;
+  if (y<0 || y>= currentMapData.height) return false;
+  if (x<0 || x>= currentMapData.width ) return false;
 
   const ch = currentMapData.tiles[y][x];
   if (ch === '#') {
@@ -455,28 +460,28 @@ function canMoveTo(x, y) {
 }
 
 /*********************************************************
- * 19) レベルクリア
+ * 20) レベルクリア
  *********************************************************/
-function levelClear() {
+function levelClear(){
   logDebug("OUTPUT","Level Clear!");
   alert("Level Clear!");
   endGame();
 }
 
 /*********************************************************
- * 20) ゲームオーバー
+ * 21) ゲームオーバー
  *********************************************************/
-function gameOver(message) {
-  logDebug("OUTPUT","GameOver: " + message);
-  alert(message);
+function gameOver(msg){
+  logDebug("OUTPUT", "GameOver: " + msg);
+  alert(msg);
   endGame();
 }
 
 /*********************************************************
- * 21) ゲーム終了
+ * 22) ゲーム終了
  *********************************************************/
-function endGame() {
-  isGamePlaying = false;
+function endGame(){
+  isGamePlaying=false;
   clearInterval(timerInterval);
   logDebug("INFO","endGame called, game stopped");
 }
