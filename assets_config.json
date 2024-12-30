@@ -1,5 +1,5 @@
 {
-  "useAssets": false,
+  "useAssets": true,
   "tileSize": 64,
   "images": {
     "wall": "assets/wall.png",
